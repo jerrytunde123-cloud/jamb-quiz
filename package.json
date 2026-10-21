@@ -1,0 +1,33 @@
+{
+  "name": "jamb-quiz",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:flow": "tsx scripts/test-flow.ts",
+    "db:push": "tsx scripts/push-schema.ts",
+    "db:migrate": "tsx scripts/migrate.ts"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@tursodatabase/serverless": "^1.4.1",
+    "katex": "^0.16.47",
+    "next": "16.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-katex": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.30.0",
+    "eslint-config-next": "^16.4.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.0"
+  }
+}

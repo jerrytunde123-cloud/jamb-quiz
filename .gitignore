@@ -1,0 +1,24 @@
+node_modules/
+.next/
+out/
+build/
+vercel-output/
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+
+# Generated (next.config.ts compiler output)
+.next/types/
+
+# Local libSQL database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.tsbuildinfo
+
+# Downloaded image cache
+db/image-cache/
