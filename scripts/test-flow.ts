@@ -14,6 +14,9 @@ import {
   getSubjects,
   getLeaderboard,
   getStats,
+  getAdminStats,
+  fetchBankVersion,
+  revalidateQuestionBank,
   resolveSubject,
 } from "../src/lib/quiz";
 import { query } from "../src/lib/turso";
@@ -28,6 +31,27 @@ async function main() {
 
   const subjects = await getSubjects();
   check("subjects load from the API", subjects.length > 0, `${subjects.length} subjects`);
+
+  const bank = await fetchBankVersion();
+  check(
+    "question bank version resolves with verified questions",
+    !!bank && !!bank.version && bank.verifiedQuestions > 2000,
+    `version=${bank?.version} (verified: ${bank?.verifiedQuestions})`
+  );
+
+  const adminStats = await getAdminStats();
+  check(
+    "admin stats carries bank version metadata",
+    !!adminStats.bankVersion && !!adminStats.bankVersion.version,
+    `bankVersion=${adminStats.bankVersion?.version}`
+  );
+
+  const reval = await revalidateQuestionBank();
+  check(
+    "revalidateQuestionBank completes successfully",
+    reval.refreshedCatalog && typeof reval.invalidatedPoolsCount === "number",
+    `invalidated=${reval.invalidatedPoolsCount} stale pool(s)`
+  );
 
   const subject = (await resolveSubject("mathematics")) ?? subjects[0];
   if (subject) {

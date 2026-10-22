@@ -8,10 +8,17 @@
  */
 import { randomUUID } from "node:crypto";
 import { query, queryOne, run, transaction } from "./turso";
-import { listSubjects, pickQuestions, slugify } from "./utmelab";
+import {
+  fetchBankVersion,
+  listSubjects,
+  pickQuestions,
+  revalidateQuestionBank,
+  slugify,
+} from "./utmelab";
 import {
   MAX_OPTIONS,
   type Attempt,
+  type BankVersionInfo,
   type Comment,
   type QuizPayload,
   type SubjectSummary,
@@ -357,19 +364,26 @@ export interface AdminStats {
   totalLikes: number;
   cacheEntries: number;
   subjectAttempts: Array<{ subject: string; count: number; avg_score: number }>;
+  bankVersion?: BankVersionInfo | null;
 }
+
+export { fetchBankVersion, revalidateQuestionBank };
 
 /** Dashboard statistics for administrative overview. */
 export async function getAdminStats(): Promise<AdminStats> {
   try {
-    const attempts = await queryOne<{ c: number }>(`SELECT COUNT(*) AS c FROM attempts`);
-    const comments = await queryOne<{ c: number }>(`SELECT COUNT(*) AS c FROM comments`);
-    const likes = await queryOne<{ s: number }>(`SELECT COALESCE(SUM(count), 0) AS s FROM likes`);
-    const cacheEntries = await queryOne<{ c: number }>(`SELECT COUNT(*) AS c FROM app_cache`);
-    const subjectAttempts = await query<{ subject: string; count: number; avg_score: number }>(
-      `SELECT LOWER(subject) AS subject, COUNT(*) AS count, ROUND(AVG(score), 1) AS avg_score 
-       FROM attempts GROUP BY LOWER(subject) ORDER BY count DESC LIMIT 20`
-    );
+    const [attempts, comments, likes, cacheEntries, subjectAttempts, bankVersion] =
+      await Promise.all([
+        queryOne<{ c: number }>(`SELECT COUNT(*) AS c FROM attempts`),
+        queryOne<{ c: number }>(`SELECT COUNT(*) AS c FROM comments`),
+        queryOne<{ s: number }>(`SELECT COALESCE(SUM(count), 0) AS s FROM likes`),
+        queryOne<{ c: number }>(`SELECT COUNT(*) AS c FROM app_cache`),
+        query<{ subject: string; count: number; avg_score: number }>(
+          `SELECT LOWER(subject) AS subject, COUNT(*) AS count, ROUND(AVG(score), 1) AS avg_score 
+           FROM attempts GROUP BY LOWER(subject) ORDER BY count DESC LIMIT 20`
+        ),
+        fetchBankVersion().catch(() => null),
+      ]);
 
     const catalog = await getSubjects().catch(() => []);
     const nameMap = new Map<string, string>();
@@ -382,6 +396,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       totalComments: Number(comments?.c ?? 0),
       totalLikes: Number(likes?.s ?? 0),
       cacheEntries: Number(cacheEntries?.c ?? 0),
+      bankVersion,
       subjectAttempts: subjectAttempts.map((r) => {
         const rawSlug = r.subject.toLowerCase();
         const displayName =
@@ -401,6 +416,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       totalComments: 0,
       totalLikes: 0,
       cacheEntries: 0,
+      bankVersion: null,
       subjectAttempts: [],
     };
   }

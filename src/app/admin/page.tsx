@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getAdminStats, getSubjects } from "@/lib/quiz";
+import { getAdminStats, getSubjects, revalidateQuestionBank } from "@/lib/quiz";
 import { getSubjectIcon } from "@/lib/subjects";
 import { isValidAdminKey } from "@/lib/auth";
 import { AdminShareLinks } from "@/components/AdminShareLinks";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Admin Dashboard · JAMB Quiz" };
 
 interface Props {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; synced?: string }>;
 }
 
 /** Action to authenticate admin using the secret key from .env */
@@ -43,8 +43,18 @@ async function lockAdmin() {
   redirect("/admin");
 }
 
+/** Action to revalidate question bank freshness and sync caches */
+async function syncBank() {
+  "use server";
+  const cookieStore = await cookies();
+  const sessionKey = cookieStore.get("admin_session")?.value;
+  if (!isValidAdminKey(sessionKey)) redirect("/admin?error=invalid");
+  await revalidateQuestionBank();
+  redirect("/admin?synced=true");
+}
+
 export default async function AdminPage({ searchParams }: Props) {
-  const { error } = await searchParams;
+  const { error, synced } = await searchParams;
   const cookieStore = await cookies();
   const sessionKey = cookieStore.get("admin_session")?.value;
   const isAuthed = isValidAdminKey(sessionKey);
@@ -117,14 +127,65 @@ export default async function AdminPage({ searchParams }: Props) {
       </header>
 
       <main className="container">
-        <h3 className="section-title">Admin Dashboard</h3>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
+          <h3 className="section-title" style={{ margin: 0 }}>
+            Admin Dashboard
+          </h3>
+          <form action={syncBank}>
+            <button
+              type="submit"
+              className="continue-btn"
+              style={{
+                padding: "8px 16px",
+                fontSize: 13,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                margin: 0,
+                cursor: "pointer",
+              }}
+              title="Query UTME Lab API with ETags, refresh catalog and prune stale pools"
+            >
+              <i className="fas fa-arrows-rotate" /> Sync Question Bank
+            </button>
+          </form>
+        </div>
+
+        {synced === "true" && (
+          <div
+            style={{
+              padding: "12px 16px",
+              background: "rgba(16, 185, 129, 0.12)",
+              border: "1px solid var(--accent)",
+              borderRadius: "var(--radius)",
+              color: "var(--accent)",
+              fontSize: 13,
+              marginBottom: 20,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <i className="fas fa-check-circle" />
+            <span>Question bank revalidated with UTME Lab. All caches and subject pools are up to date!</span>
+          </div>
+        )}
 
         {stats && (
           <div
             className="admin-stats-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
               gap: 14,
               marginBottom: 28,
             }}
@@ -161,6 +222,31 @@ export default async function AdminPage({ searchParams }: Props) {
               </div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
                 Live Subjects
+              </div>
+            </div>
+            <div
+              className="stat-card"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius)",
+                padding: 18,
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 20,
+                  fontWeight: 800,
+                  color: "var(--accent)",
+                  fontFamily: "monospace",
+                  letterSpacing: "0.03em",
+                }}
+              >
+                {stats.bankVersion?.version?.slice(0, 10) || "live"}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                Bank Version ({stats.bankVersion?.verifiedQuestions ?? 2190} verified)
               </div>
             </div>
             <div

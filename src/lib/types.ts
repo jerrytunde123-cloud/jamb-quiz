@@ -70,6 +70,16 @@ export interface SubjectSummary {
   icon?: string;
 }
 
+/** Information about the upstream question bank version and freshness. */
+export interface BankVersionInfo {
+  version: string;
+  etag: string;
+  heldQuestions: number;
+  verifiedQuestions: number;
+  subjectsCount: number;
+  lastChecked: string;
+}
+
 export interface Attempt {
   id: number;
   subject: string;

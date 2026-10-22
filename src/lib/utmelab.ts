@@ -11,6 +11,7 @@ import path from "node:path";
 import { safeQueryOne, run } from "./turso";
 import { getSubjectIcon, sortSubjects } from "./subjects";
 import type {
+  BankVersionInfo,
   InlineMark,
   PublicPassage,
   PublicQuestion,
@@ -75,11 +76,18 @@ export class UtmeLabError extends Error {
 }
 
 /* ------------------------------- HTTP ------------------------------- */
-async function getJson<T>(
+export interface ApiResponse<T> {
+  data: T | null;
+  etag: string | null;
+  notModified: boolean;
+  status: number;
+}
+
+export async function requestApi<T>(
   path: string,
   params: Record<string, string | number | boolean> = {},
-  opts: { keyed?: boolean } = {}
-): Promise<T> {
+  opts: { keyed?: boolean; ifNoneMatch?: string } = {}
+): Promise<ApiResponse<T>> {
   const url = new URL(BASE_URL + path);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, String(v));
@@ -98,6 +106,11 @@ async function getJson<T>(
     headers["x-api-key"] = API_KEY;
   }
 
+  if (opts.ifNoneMatch) {
+    const rawTag = opts.ifNoneMatch.trim();
+    headers["if-none-match"] = rawTag.startsWith('"') ? rawTag : `"${rawTag}"`;
+  }
+
   let res: Response;
   try {
     res = await fetch(url, {
@@ -111,6 +124,18 @@ async function getJson<T>(
     );
   }
 
+  const rawEtag = res.headers.get("etag");
+  const cleanEtag = rawEtag ? rawEtag.replace(/^"|"$/g, "") : null;
+
+  if (res.status === 304) {
+    return {
+      data: null,
+      etag: cleanEtag,
+      notModified: true,
+      status: 304,
+    };
+  }
+
   if (!res.ok) {
     const retryAfter = res.headers.get("retry-after");
     const suffix =
@@ -121,7 +146,25 @@ async function getJson<T>(
     );
   }
 
-  return (await res.json()) as T;
+  const data = (await res.json()) as T;
+  return {
+    data,
+    etag: cleanEtag,
+    notModified: false,
+    status: res.status,
+  };
+}
+
+async function getJson<T>(
+  path: string,
+  params: Record<string, string | number | boolean> = {},
+  opts: { keyed?: boolean; ifNoneMatch?: string } = {}
+): Promise<T> {
+  const res = await requestApi<T>(path, params, opts);
+  if (res.data === null) {
+    throw new UtmeLabError(`Empty response from ${path}`);
+  }
+  return res.data;
 }
 
 /* ------------------------------ Slugify ------------------------------ */
@@ -131,6 +174,78 @@ export function slugify(value: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+/* ---------------------------- Bank Version ---------------------------- */
+const BANK_VERSION_KEY = "bank_version";
+let cachedBankVersion: BankVersionInfo | null = null;
+
+export async function fetchBankVersion(forceRefresh = false): Promise<BankVersionInfo> {
+  if (!forceRefresh && cachedBankVersion) {
+    return cachedBankVersion;
+  }
+
+  if (!forceRefresh) {
+    const row = await safeQueryOne<{ value: string }>(
+      `SELECT value FROM app_cache WHERE key = ?`,
+      [BANK_VERSION_KEY]
+    );
+    if (row?.value) {
+      try {
+        const parsed = JSON.parse(row.value) as BankVersionInfo;
+        if (parsed?.version && typeof parsed.verifiedQuestions === "number") {
+          cachedBankVersion = parsed;
+          return parsed;
+        }
+      } catch {
+        /* ignore corrupted cache */
+      }
+    }
+  }
+
+  try {
+    const res = await requestApi<ExamResponse[]>("/public/exams");
+    const etag = res.etag ?? "";
+    const exams = res.data ?? [];
+    const jamb = exams.find((e) => e.code === EXAM);
+
+    const held = jamb?.subjects.reduce((acc, s) => acc + (s.held ?? 0), 0) ?? 0;
+    const verified = jamb?.subjects.reduce((acc, s) => acc + (s.verified ?? 0), 0) ?? 0;
+    const count = jamb?.subjects.filter((s) => (s.verified ?? s.held ?? 0) > 0).length ?? 0;
+
+    const info: BankVersionInfo = {
+      version: etag ? etag.slice(0, 16) : "live-bank",
+      etag,
+      heldQuestions: held,
+      verifiedQuestions: verified,
+      subjectsCount: count,
+      lastChecked: new Date().toISOString(),
+    };
+
+    cachedBankVersion = info;
+
+    try {
+      await run(
+        `INSERT INTO app_cache (key, value, updated_at) VALUES (?, ?, datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
+        [BANK_VERSION_KEY, JSON.stringify(info)]
+      );
+    } catch (err) {
+      console.warn("[cache] failed to save bank_version to db:", err);
+    }
+
+    return info;
+  } catch {
+    if (cachedBankVersion) return cachedBankVersion;
+    return {
+      version: "cached",
+      etag: "",
+      heldQuestions: 0,
+      verifiedQuestions: 0,
+      subjectsCount: 0,
+      lastChecked: new Date().toISOString(),
+    };
+  }
 }
 
 /* ------------------------------ Subjects ------------------------------ */
@@ -227,7 +342,20 @@ export async function listSubjects(forceRefresh = false): Promise<SubjectSummary
   }
 
   try {
-    const exams = await getJson<ExamResponse[]>("/public/exams");
+    const etagRow = await safeQueryOne<{ value: string }>(
+      `SELECT value FROM app_cache WHERE key = 'subjects_catalog_etag'`
+    );
+    const storedEtag = etagRow?.value ?? undefined;
+
+    const res = await requestApi<ExamResponse[]>("/public/exams", {}, {
+      ifNoneMatch: forceRefresh ? undefined : storedEtag,
+    });
+
+    if (res.notModified && subjectCache && subjectCache.length > 0) {
+      return subjectCache;
+    }
+
+    const exams = res.data ?? [];
     const exam = exams.find((e) => e.code === EXAM);
     if (!exam) {
       throw new UtmeLabError(`The question bank has no exam code ${EXAM}.`);
@@ -246,6 +374,15 @@ export async function listSubjects(forceRefresh = false): Promise<SubjectSummary
     const sorted = sortSubjects(subjects);
     subjectCache = sorted;
     void persistSubjectsToCaches(sorted);
+
+    if (res.etag) {
+      void run(
+        `INSERT INTO app_cache (key, value, updated_at) VALUES ('subjects_catalog_etag', ?, datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
+        [res.etag]
+      ).catch(() => {});
+    }
+
     return sorted;
   } catch (apiErr) {
     const fallback = (await loadSubjectsFromDisk()) ?? (await loadSubjectsFromDb());
@@ -472,8 +609,12 @@ interface QuestionsResponse {
   total_records: number;
 }
 
-async function questionsPage(slug: string, page: number): Promise<QuestionsResponse> {
-  return getJson<QuestionsResponse>(
+async function questionsPage(
+  slug: string,
+  page: number,
+  ifNoneMatch?: string
+): Promise<ApiResponse<QuestionsResponse>> {
+  return requestApi<QuestionsResponse>(
     "/questions",
     {
       exam: EXAM,
@@ -483,7 +624,7 @@ async function questionsPage(slug: string, page: number): Promise<QuestionsRespo
       page,
       per_page: PAGE_SIZE,
     },
-    { keyed: true }
+    { keyed: true, ifNoneMatch }
   );
 }
 
@@ -501,6 +642,12 @@ interface QuestionPool {
   passages: Record<string, PublicPassage>;
 }
 
+interface StoredPoolData {
+  pool: QuestionPool;
+  etag?: string | null;
+  verifiedCount?: number;
+}
+
 const poolCache = new Map<string, QuestionPool>();
 const inFlightPool = new Map<string, Promise<QuestionPool>>();
 
@@ -511,16 +658,25 @@ async function loadSubjectPool(subject: SubjectSummary): Promise<QuestionPool> {
   }
 
   // Check DB app_cache for cached pool
+  let existingPool: QuestionPool | null = null;
+  let cachedEtag: string | null = null;
+  let cachedCount = 0;
+
   const dbRow = await safeQueryOne<{ value: string }>(
     `SELECT value FROM app_cache WHERE key = ?`,
     [`pool_${subject.slug}`]
   );
   if (dbRow?.value) {
     try {
-      const parsed = JSON.parse(dbRow.value) as QuestionPool;
-      if (parsed && Array.isArray(parsed.candidates) && parsed.candidates.length > 0) {
-        poolCache.set(subject.slug, parsed);
-        return parsed;
+      const parsed = JSON.parse(dbRow.value) as StoredPoolData | QuestionPool;
+      existingPool = "pool" in parsed ? parsed.pool : parsed;
+      cachedCount = "verifiedCount" in parsed ? (parsed.verifiedCount ?? 0) : (existingPool.candidates?.length ?? 0);
+      cachedEtag = "etag" in parsed ? (parsed.etag ?? null) : null;
+
+      const isOutdated = subject.count > 0 && cachedCount > 0 && subject.count > cachedCount;
+      if (!isOutdated && existingPool && Array.isArray(existingPool.candidates) && existingPool.candidates.length > 0) {
+        poolCache.set(subject.slug, existingPool);
+        return existingPool;
       }
     } catch {
       /* ignore corrupted cache */
@@ -533,16 +689,34 @@ async function loadSubjectPool(subject: SubjectSummary): Promise<QuestionPool> {
 
   const fetchPromise = (async () => {
     try {
-      const first = await questionsPage(subject.slug, 1);
+      const firstRes = await questionsPage(subject.slug, 1, cachedEtag ?? undefined);
+
+      // Byte-identical revalidation: 304 Not Modified
+      if (firstRes.notModified && existingPool && existingPool.candidates.length > 0) {
+        poolCache.set(subject.slug, existingPool);
+        return existingPool;
+      }
+
+      const first = firstRes.data;
+      if (!first) {
+        if (existingPool && existingPool.candidates.length > 0) {
+          poolCache.set(subject.slug, existingPool);
+          return existingPool;
+        }
+        throw new UtmeLabError(`No questions available for ${subject.name}`);
+      }
+
       const pages: QuestionsResponse[] = [first];
 
       if (first.total_pages > 1) {
-        const otherPages = await Promise.all(
+        const otherResponses = await Promise.all(
           Array.from({ length: first.total_pages - 1 }, (_, i) =>
             questionsPage(subject.slug, i + 2)
           )
         );
-        pages.push(...otherPages);
+        for (const r of otherResponses) {
+          if (r.data) pages.push(r.data);
+        }
       }
 
       const seen = new Set<string>();
@@ -594,12 +768,17 @@ async function loadSubjectPool(subject: SubjectSummary): Promise<QuestionPool> {
 
       poolCache.set(subject.slug, pool);
 
-      // Persist to DB cache
+      // Persist to DB cache with ETag and verified question count
       try {
+        const toStore: StoredPoolData = {
+          pool,
+          etag: firstRes.etag ?? null,
+          verifiedCount: subject.count || validCandidates.length,
+        };
         await run(
           `INSERT INTO app_cache (key, value, updated_at) VALUES (?, ?, datetime('now'))
            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
-          [`pool_${subject.slug}`, JSON.stringify(pool)]
+          [`pool_${subject.slug}`, JSON.stringify(toStore)]
         );
       } catch (err) {
         console.warn(`[cache] could not save pool for ${subject.slug} to db:`, err);
@@ -613,6 +792,52 @@ async function loadSubjectPool(subject: SubjectSummary): Promise<QuestionPool> {
 
   inFlightPool.set(subject.slug, fetchPromise);
   return fetchPromise;
+}
+
+/** Explicitly revalidate question bank freshness and clear stale pools. */
+export async function revalidateQuestionBank(): Promise<{
+  version: BankVersionInfo;
+  refreshedCatalog: boolean;
+  invalidatedPoolsCount: number;
+}> {
+  subjectCache = null;
+  poolCache.clear();
+  passageCache.clear();
+  cachedBankVersion = null;
+
+  const version = await fetchBankVersion(true);
+  const subjects = await listSubjects(true);
+
+  let invalidatedPoolsCount = 0;
+  for (const s of subjects) {
+    const row = await safeQueryOne<{ value: string }>(
+      `SELECT value FROM app_cache WHERE key = ?`,
+      [`pool_${s.slug}`]
+    );
+    if (row?.value) {
+      try {
+        const parsed = JSON.parse(row.value) as StoredPoolData | QuestionPool;
+        const cachedCount =
+          "verifiedCount" in parsed
+            ? (parsed.verifiedCount ?? 0)
+            : ("candidates" in parsed
+                ? parsed.candidates.length
+                : parsed.pool?.candidates?.length ?? 0);
+        if (s.count !== cachedCount) {
+          await run(`DELETE FROM app_cache WHERE key = ?`, [`pool_${s.slug}`]);
+          invalidatedPoolsCount++;
+        }
+      } catch {
+        /* ignore corrupted row */
+      }
+    }
+  }
+
+  return {
+    version,
+    refreshedCatalog: true,
+    invalidatedPoolsCount,
+  };
 }
 
 export async function pickQuestions(
