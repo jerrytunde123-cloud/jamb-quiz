@@ -118,7 +118,13 @@ export function Quiz({ slug, name, challenger, challengeScore }: Props) {
           }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error ?? "Could not submit your answers.");
+        if (!res.ok) {
+          if (data?.error === "This quiz has already been submitted" && result) {
+            setPhase("done");
+            return;
+          }
+          throw new Error(data?.error ?? "Could not submit your answers. Please check your connection.");
+        }
         if (data && typeof data.score === "number" && typeof data.total === "number" && data.total > 0) {
           const newStreak = recordPracticeDay();
           setStreakCount(newStreak);
@@ -149,7 +155,7 @@ export function Quiz({ slug, name, challenger, challengeScore }: Props) {
         submitted.current = false;
       }
     },
-    [quizId, nickname, startedAt, slug, name]
+    [quizId, nickname, startedAt, slug, name, result]
   );
 
   // Countdown timer. Auto-submits when it reaches zero.
@@ -439,7 +445,17 @@ export function Quiz({ slug, name, challenger, challengeScore }: Props) {
   }
 
   if (phase === "submitting") {
-    return <p className="muted">Grading your answers…</p>;
+    return (
+      <section className="quiz-start">
+        <div className="gate-icon" style={{ fontSize: 36, marginBottom: 16 }}>
+          <i className="fas fa-circle-notch fa-spin" style={{ color: "var(--primary)" }} />
+        </div>
+        <h3>Grading your answers…</h3>
+        <p className="muted small" style={{ marginTop: 6 }}>
+          Calculating your score and ranking…
+        </p>
+      </section>
+    );
   }
 
   if (!current) return <p className="muted">No questions available for {name}.</p>;
@@ -497,6 +513,26 @@ export function Quiz({ slug, name, challenger, challengeScore }: Props) {
         <div className="progress-fill" style={{ width: `${progress}%` }} />
       </div>
 
+      {questions.length > 1 && (
+        <div className="cbt-palette" role="tablist" aria-label="Question palette">
+          {questions.map((q, idx) => {
+            const isAnswered = answers[q.id] !== undefined && answers[q.id] !== -1;
+            const isCurrent = idx === index;
+            return (
+              <button
+                key={q.id}
+                type="button"
+                className={`palette-num ${isCurrent ? "current" : ""} ${isAnswered ? "answered" : ""}`}
+                onClick={() => setIndex(idx)}
+                title={`Question ${idx + 1}${isAnswered ? " (Answered)" : " (Unanswered)"}`}
+              >
+                {idx + 1}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="question-card">
         {current.passageId && passages[current.passageId] && (
           <Passage passage={passages[current.passageId]} />
@@ -550,9 +586,16 @@ export function Quiz({ slug, name, challenger, challengeScore }: Props) {
             type="button"
             className="btn-primary"
             onClick={() => void submit(answersRef.current)}
-            disabled={answeredCount === 0}
+            disabled={answeredCount === 0 || phase === "submitting"}
           >
-            Submit ({answeredCount}/{questions.length})
+            {phase === "submitting" ? (
+              <>
+                <i className="fas fa-spinner fa-spin" style={{ marginRight: 6 }} />
+                Submitting…
+              </>
+            ) : (
+              `Submit (${answeredCount}/${questions.length})`
+            )}
           </button>
         )}
       </div>
