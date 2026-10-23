@@ -141,8 +141,18 @@ export function WhatsAppGate({
     onUnlocked(finalNick);
   }
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const shareText = `Practice 15 ${subjectName} JAMB past questions online! Take the quiz here: ${origin}/s/${subjectSlug}`;
+  function handleShareClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    e.preventDefault();
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const text = `Practice 15 ${subjectName} JAMB past questions online! Take the quiz here: ${origin}/s/${subjectSlug}`;
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  const fallbackShareText = `Practice 15 ${subjectName} JAMB past questions online! Take the quiz here: /s/${subjectSlug}`;
 
   return (
     <>
@@ -241,8 +251,10 @@ export function WhatsAppGate({
                   padding: "10px 14px",
                   margin: 0,
                   textDecoration: "none",
+                  cursor: "pointer",
                 }}
-                href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+                href={`https://wa.me/?text=${encodeURIComponent(fallbackShareText)}`}
+                onClick={handleShareClick}
                 target="_blank"
                 rel="noopener noreferrer"
               >

@@ -80,6 +80,13 @@ export function Home({ subjects }: { subjects: SubjectRow[] }) {
     if (!pendingSubject) return;
     const targetSlug = pendingSubject.slug;
     addRecentSubject(targetSlug);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("gate_unlocked_" + targetSlug, "1");
+      } catch {
+        /* ignore private mode storage errors */
+      }
+    }
     const query = new URLSearchParams();
     query.set("start", "1");
     if (challengeInfo && challengeInfo.slug === targetSlug) {

@@ -110,19 +110,33 @@ export function Quiz({ slug, name, challenger, challengeScore, autoStart }: Prop
     if (autoStartedRef.current) return;
     autoStartedRef.current = true;
 
-    if (autoStart) {
-      if (typeof window !== "undefined" && window.location.search.includes("start=1")) {
-        const cleanSearch = window.location.search
-          .replace(/([?&])start=1(&|$)/, "$1")
-          .replace(/[?&]$/, "");
-        window.history.replaceState({}, "", window.location.pathname + cleanSearch);
+    const sessionKey = "gate_unlocked_" + slug;
+    let isUnlocked = false;
+    if (typeof window !== "undefined") {
+      try {
+        isUnlocked = sessionStorage.getItem(sessionKey) === "1";
+        if (isUnlocked) {
+          sessionStorage.removeItem(sessionKey);
+        }
+      } catch {
+        /* ignore storage exceptions */
       }
+    }
+
+    if (autoStart && isUnlocked) {
       const timer = setTimeout(() => {
         void start();
       }, 0);
       return () => clearTimeout(timer);
+    } else if (autoStart && !isUnlocked) {
+      // User refreshed or opened a ?start=1 link without completing the gate in this session
+      const timer = setTimeout(() => {
+        setIsGateOpen(true);
+        setPhase("idle");
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [autoStart, start]);
+  }, [autoStart, slug, start]);
 
   const submit = useCallback(
     async (answersToSend: Record<string, number>) => {
