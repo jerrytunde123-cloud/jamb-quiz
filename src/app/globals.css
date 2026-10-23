@@ -127,6 +127,11 @@ a.subject-card:hover {
   border-color: rgba(245, 166, 35, 0.35);
   background: linear-gradient(180deg, rgba(245, 166, 35, 0.06) 0%, var(--card) 100%);
 }
+/* ---------- Timer urgency ---------- */
+.timer.warn { color: #fbbf24; }
+.timer.danger { color: #ef4444; }
+.timer.pulse { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 /* ---------- Accessibility & motion ---------- */
 *:focus-visible {
   outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px;

@@ -539,7 +539,11 @@ export function Quiz({ slug, name, challenger, challengeScore, autoStart }: Prop
           >
             {soundOn ? "🔊" : "🔇"}
           </button>
-          <span className={`timer ${remaining <= 30 ? "danger" : ""}`}>
+          <span
+            className={`timer ${remaining <= 10 ? "danger pulse" : remaining <= 60 ? "warn" : ""}`}
+            aria-live="polite"
+            aria-label={`${Math.floor(remaining / 60)} minutes ${remaining % 60} seconds remaining`}
+          >
             <i className="fas fa-clock" /> {timeLabel}
           </span>
         </div>
