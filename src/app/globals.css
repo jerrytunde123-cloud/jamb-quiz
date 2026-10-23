@@ -127,6 +127,22 @@ a.subject-card:hover {
   border-color: rgba(245, 166, 35, 0.35);
   background: linear-gradient(180deg, rgba(245, 166, 35, 0.06) 0%, var(--card) 100%);
 }
+/* ---------- Accessibility & motion ---------- */
+*:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
 .recents-grid .subject-card:hover {
   border-color: var(--primary);
   box-shadow: 0 10px 30px rgba(245, 166, 35, 0.22);
