@@ -77,6 +77,34 @@ export function Quiz({ slug, name, challenger, challengeScore, autoStart }: Prop
     if (slug) addRecentSubject(slug);
   }, [slug]);
 
+
+  // Keyboard shortcuts: 1-6 select option, ArrowLeft/Right navigate, Enter next, S submit.
+  useEffect(() => {
+    if (phase !== "quiz" || !current) return;
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const num = parseInt(e.key, 10);
+      if (num >= 1 && num <= current.options.length) {
+        e.preventDefault();
+        choose(num - 1);
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setIndex((i) => Math.max(0, i - 1));
+      } else if (e.key === "ArrowRight" || e.key === "Enter") {
+        e.preventDefault();
+        if (index < questions.length - 1) setIndex((i) => Math.min(questions.length - 1, i + 1));
+      } else if (e.key.toLowerCase() === "s" && index === questions.length - 1) {
+        e.preventDefault();
+        if (answeredCount > 0 && phase !== "submitting") void submit(answersRef.current);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase, current, index, questions.length, answeredCount]);
+
   const start = useCallback(async () => {
     setPhase("loading");
     setError(null);
