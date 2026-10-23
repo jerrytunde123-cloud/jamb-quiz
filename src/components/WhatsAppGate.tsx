@@ -43,18 +43,18 @@ export function handleWhatsAppDeepLink(
   const channelCode = match[1];
   const deepLink = `whatsapp://channel/${channelCode}`;
 
-  const fallback = setTimeout(() => {
-    window.location.href = httpsUrl;
+  // Open in a new context so the gate modal's state survives on Safari/iOS,
+  // which would otherwise unload this document on scheme navigation.
+  const opened = window.open(deepLink, "_blank");
+  setTimeout(() => {
+    try {
+      if (!opened || opened.closed) {
+        window.open(httpsUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      window.open(httpsUrl, "_blank", "noopener,noreferrer");
+    }
   }, 1200);
-
-  window.location.href = deepLink;
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-      if (document.hidden) clearTimeout(fallback);
-    },
-    { once: true }
-  );
 }
 
 interface WhatsAppGateProps {
