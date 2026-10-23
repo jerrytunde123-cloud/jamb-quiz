@@ -85,10 +85,35 @@ export function WhatsAppGate({
   const [storedNickname, setStoredNickname] = useLocalStorage("nickname");
   const [nicknameInput, setNicknameInput] = useState("");
 
+  const pendingChannels = useRef<Set<string>>(new Set());
+
   useEffect(() => {
-    const t = timers.current;
+    function completePending() {
+      // Safari/Chrome may throttle setInterval while the tab is backgrounded
+      // (e.g. after opening WhatsApp). When the user returns, finish any
+      // in-flight channel joins immediately.
+      pendingChannels.current.forEach((chId) => {
+        const iv = timers.current[chId];
+        if (iv) {
+          clearInterval(iv);
+          delete timers.current[chId];
+        }
+        setSecondsLeft((prev) => ({ ...prev, [chId]: 0 }));
+        setJoined((prev) => ({ ...prev, [chId]: true }));
+      });
+      pendingChannels.current.clear();
+    }
+    const onVisible = () => {
+      if (document.visibilityState === "visible") completePending();
+    };
+    const onFocus = () => completePending();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onFocus);
     return () => {
-      Object.values(t).forEach((iv) => clearInterval(iv));
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onFocus);
     };
   }, []);
 
@@ -109,6 +134,8 @@ export function WhatsAppGate({
 
     handleWhatsAppDeepLink(e, href);
 
+    pendingChannels.current.add(chId);
+
     let sec = 5;
     setSecondsLeft((prev) => ({ ...prev, [chId]: sec }));
 
@@ -117,6 +144,7 @@ export function WhatsAppGate({
       if (sec <= 0) {
         clearInterval(iv);
         delete timers.current[chId];
+        pendingChannels.current.delete(chId);
         setSecondsLeft((prev) => ({ ...prev, [chId]: 0 }));
         setJoined((prev) => ({ ...prev, [chId]: true }));
       } else {
