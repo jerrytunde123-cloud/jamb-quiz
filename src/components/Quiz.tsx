@@ -332,7 +332,15 @@ export function Quiz({ slug, name, challenger, challengeScore, autoStart }: Prop
   }
 
   if (phase === "loading") {
-    return <p className="muted">Loading questions…</p>;
+    return (
+      <section className="quiz-start" aria-busy="true" aria-live="polite">
+        <div className="skeleton skeleton-title" />
+        <div className="skeleton skeleton-line" />
+        <div className="skeleton skeleton-line short" />
+        <div className="skeleton skeleton-card" />
+        <p className="muted small" style={{ marginTop: 12 }}>Loading questions…</p>
+      </section>
+    );
   }
 
   if (phase === "error") {
