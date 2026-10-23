@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocalStorage } from "@/lib/use-local-storage";
 import { getSubjectIcon } from "@/lib/subjects";
 import { useRecentSlugs, addRecentSubject, MAX_RECENTS } from "@/lib/recents";
 import { getStreakInfo } from "@/lib/streak";
 import { useMounted } from "@/lib/use-mounted";
+import { WhatsAppGate } from "./WhatsAppGate";
 
 export interface SubjectRow {
   slug: string;
@@ -16,65 +17,10 @@ export interface SubjectRow {
   icon?: string;
 }
 
-const CHANNELS = [
-  {
-    id: "ch1",
-    label: "Join Main Channel",
-    icon: "fab fa-whatsapp",
-    href: "https://whatsapp.com/channel/0029VbD2bkWLNSZwxGpz2k0x",
-  },
-  {
-    id: "ch2",
-    label: "JAMB UTME",
-    icon: "fab fa-whatsapp",
-    href: "https://whatsapp.com/channel/0029VbDTOmB1t90jcv9gLf0q",
-  },
-];
-
-const OPTIONAL_CHANNEL = {
-  label: "2027 JAMBITES",
-  href: "https://whatsapp.com/channel/0029VbCwT4KAojYzRNFvpT1h",
-};
-
-/**
- * Mobile WhatsApp deep link interceptor.
- * Opens native WhatsApp app directly with fallback to browser URL.
- */
-function handleWhatsAppDeepLink(
-  e: React.MouseEvent<HTMLAnchorElement>,
-  httpsUrl: string
-) {
-  const match = httpsUrl.match(/whatsapp\.com\/channel\/([A-Za-z0-9]+)/);
-  if (!match) return;
-
-  const isMobile =
-    typeof navigator !== "undefined" &&
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (!isMobile) return;
-
-  e.preventDefault();
-  const channelCode = match[1];
-  const deepLink = `whatsapp://channel/${channelCode}`;
-
-  const fallback = setTimeout(() => {
-    window.location.href = httpsUrl;
-  }, 1200);
-
-  window.location.href = deepLink;
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-      if (document.hidden) clearTimeout(fallback);
-    },
-    { once: true }
-  );
-}
-
 export function Home({ subjects }: { subjects: SubjectRow[] }) {
   const mounted = useMounted();
   const router = useRouter();
   const [pendingSubject, setPendingSubject] = useState<SubjectRow | null>(null);
-  const [step, setStep] = useState<"gate" | "nickname" | null>(null);
   const [challengeInfo] = useState<{
     challenger: string;
     score: string;
@@ -93,26 +39,9 @@ export function Home({ subjects }: { subjects: SubjectRow[] }) {
   });
   const [streak] = useState(() => getStreakInfo().streak);
 
-  // Channels countdown state
-  const [joined, setJoined] = useState<Record<string, boolean>>({});
-  const [secondsLeft, setSecondsLeft] = useState<Record<string, number>>({});
-  const timers = useRef<Record<string, ReturnType<typeof setInterval>>>({});
-
-  // Nickname
-  const [storedNickname, setStoredNickname] = useLocalStorage("nickname");
-  const [nicknameInput, setNicknameInput] = useState("");
-
   // Recents & share
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [recentSlugs, , clearRecents] = useRecentSlugs();
-
-  // Clear timers on unmount
-  useEffect(() => {
-    const t = timers.current;
-    return () => {
-      Object.values(t).forEach((iv) => clearInterval(iv));
-    };
-  }, []);
 
   // Listen for ?subject= in the URL (e.g. from shared /s/ links)
   useEffect(() => {
@@ -144,64 +73,21 @@ export function Home({ subjects }: { subjects: SubjectRow[] }) {
   }, [mounted, recentSlugs, subjects]);
 
   function openGate(subject: SubjectRow) {
-    // Reset gate countdown timers and state
-    Object.values(timers.current).forEach((iv) => clearInterval(iv));
-    timers.current = {};
-    setJoined({});
-    setSecondsLeft({});
     setPendingSubject(subject);
-    setStep("gate");
   }
 
-  function handleChannelClick(
-    e: React.MouseEvent<HTMLAnchorElement>,
-    chId: string,
-    href: string
-  ) {
-    if (joined[chId] || timers.current[chId]) return;
-
-    handleWhatsAppDeepLink(e, href);
-
-    let sec = 5;
-    setSecondsLeft((prev) => ({ ...prev, [chId]: sec }));
-
-    const iv = setInterval(() => {
-      sec--;
-      if (sec <= 0) {
-        clearInterval(iv);
-        delete timers.current[chId];
-        setSecondsLeft((prev) => ({ ...prev, [chId]: 0 }));
-        setJoined((prev) => ({ ...prev, [chId]: true }));
-      } else {
-        setSecondsLeft((prev) => ({ ...prev, [chId]: sec }));
-      }
-    }, 1000);
-
-    timers.current[chId] = iv;
-  }
-
-  const allChannelsReady = CHANNELS.every((c) => joined[c.id]);
-
-  function handleContinue() {
-    if (!allChannelsReady || !pendingSubject) return;
-    setNicknameInput(storedNickname || "");
-    setStep("nickname");
-  }
-
-  function handleStartQuiz() {
+  function handleUnlocked() {
     if (!pendingSubject) return;
-    const finalNick = nicknameInput.trim() || storedNickname || "Anonymous";
-    setStoredNickname(finalNick);
-    addRecentSubject(pendingSubject.slug);
-    setStep(null);
-
+    const targetSlug = pendingSubject.slug;
+    addRecentSubject(targetSlug);
     const query = new URLSearchParams();
-    if (challengeInfo && challengeInfo.slug === pendingSubject.slug) {
+    query.set("start", "1");
+    if (challengeInfo && challengeInfo.slug === targetSlug) {
       query.set("challenger", challengeInfo.challenger);
       query.set("score", challengeInfo.score);
     }
-    const qs = query.toString() ? `?${query.toString()}` : "";
-    router.push(`/quiz/${encodeURIComponent(pendingSubject.slug)}${qs}`);
+    setPendingSubject(null);
+    router.push(`/quiz/${encodeURIComponent(targetSlug)}?${query.toString()}`);
   }
 
   async function share(slug: string) {
@@ -350,122 +236,19 @@ export function Home({ subjects }: { subjects: SubjectRow[] }) {
         </section>
       </main>
 
-      {/* WHATSAPP 2-CHANNEL GATE MODAL */}
-      {step === "gate" && pendingSubject && (
-        <div className="gate" id="gate" onClick={() => setStep(null)}>
-          <div className="gate-card" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="close-x"
-              onClick={() => setStep(null)}
-              title="Close modal"
-            >
-              ✕
-            </button>
-            <div className="gate-icon">
-              <i className="fab fa-whatsapp" style={{ color: "#25d366" }} />
-            </div>
-            <h3>Join Both Channels to Unlock</h3>
-            {challengeInfo && challengeInfo.slug === pendingSubject.slug ? (
-              <div
-                style={{
-                  background: "rgba(245, 166, 35, 0.12)",
-                  border: "1px solid rgba(245, 166, 35, 0.35)",
-                  borderRadius: 10,
-                  padding: "8px 12px",
-                  margin: "8px 0 14px",
-                  fontSize: 13,
-                }}
-              >
-                ⚔️ <strong>{challengeInfo.challenger}</strong> challenged you to beat{" "}
-                <strong style={{ color: "var(--primary)" }}>{challengeInfo.score}/15</strong>!
-              </div>
-            ) : (
-              <p>
-                You must join <strong>both</strong> WhatsApp channels before
-                starting the <strong>{pendingSubject.name}</strong> quiz.
-              </p>
-            )}
-
-            {CHANNELS.map((c) => {
-              const isDone = joined[c.id];
-              const sec = secondsLeft[c.id];
-              return (
-                <a
-                  key={c.id}
-                  id={c.id + "Btn"}
-                  className={`btn-wa ${isDone ? "done" : ""}`}
-                  href={c.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => handleChannelClick(e, c.id, c.href)}
-                >
-                  <i className={c.icon} />
-                  <span>{c.label}</span>
-                  {typeof sec === "number" && sec > 0 ? (
-                    <span className="ch-timer">{sec}s</span>
-                  ) : isDone ? (
-                    <span className="ch-timer">✓</span>
-                  ) : null}
-                </a>
-              );
-            })}
-
-            <button
-              className="continue-btn"
-              id="continueBtn"
-              disabled={!allChannelsReady}
-              onClick={handleContinue}
-            >
-              <i className={`fas ${allChannelsReady ? "fa-unlock" : "fa-lock"}`} style={{ marginRight: 6 }} />
-              Continue to Quiz
-            </button>
-
-            <p className="small" style={{ marginTop: 14 }}>
-              Optional channel:{" "}
-              <a
-                href={OPTIONAL_CHANNEL.href}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {OPTIONAL_CHANNEL.label}
-              </a>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* NICKNAME PROMPT MODAL */}
-      {step === "nickname" && pendingSubject && (
-        <div className="gate" id="nicknameModal" onClick={() => setStep(null)}>
-          <div className="gate-card" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="close-x"
-              onClick={() => setStep(null)}
-              title="Close modal"
-            >
-              ✕
-            </button>
-            <h3>Enter Your Nickname</h3>
-            <p>This will appear on the {pendingSubject.name} leaderboard.</p>
-            <input
-              id="nicknameInput"
-              className="nickname-input"
-              maxLength={20}
-              placeholder="e.g. Scholar01"
-              autoFocus
-              value={nicknameInput}
-              onChange={(e) => setNicknameInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleStartQuiz();
-              }}
-            />
-            <button className="continue-btn" onClick={handleStartQuiz}>
-              Start Quiz <i className="fas fa-arrow-right" style={{ marginLeft: 6 }} />
-            </button>
-          </div>
-        </div>
+      {pendingSubject && (
+        <WhatsAppGate
+          isOpen={Boolean(pendingSubject)}
+          subjectName={pendingSubject.name}
+          subjectSlug={pendingSubject.slug}
+          challengeInfo={
+            challengeInfo && challengeInfo.slug === pendingSubject.slug
+              ? { challenger: challengeInfo.challenger, score: challengeInfo.score }
+              : null
+          }
+          onClose={() => setPendingSubject(null)}
+          onUnlocked={handleUnlocked}
+        />
       )}
     </>
   );

@@ -19,6 +19,7 @@ import { recordPracticeDay, getStreakInfo } from "@/lib/streak";
 import { useMounted } from "@/lib/use-mounted";
 import { RichText } from "./RichText";
 import { Comments } from "./Comments";
+import { WhatsAppGate } from "./WhatsAppGate";
 
 /** The bank serves four-option rows and a few five-option cloze questions. */
 const LETTERS = ["A", "B", "C", "D", "E", "F"];
@@ -34,6 +35,8 @@ interface Props {
   challenger?: string;
   /** Optional challenger score to beat. */
   challengeScore?: string;
+  /** Whether to auto-start immediately (e.g. redirected from home gate). */
+  autoStart?: boolean;
 }
 
 /**
@@ -43,9 +46,10 @@ interface Props {
  * server-side on submit, and the result comes back with the answer key for
  * the review screen.
  */
-export function Quiz({ slug, name, challenger, challengeScore }: Props) {
+export function Quiz({ slug, name, challenger, challengeScore, autoStart }: Props) {
   const mounted = useMounted();
-  const [phase, setPhase] = useState<Phase>("idle");
+  const [phase, setPhase] = useState<Phase>(() => (autoStart ? "loading" : "idle"));
+  const [isGateOpen, setIsGateOpen] = useState(() => !autoStart);
   const [error, setError] = useState<string | null>(null);
   const [quizId, setQuizId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<PublicQuestion[]>([]);
@@ -67,6 +71,7 @@ export function Quiz({ slug, name, challenger, challengeScore }: Props) {
   const submitted = useRef(false);
   /** Latest answers, so the auto-submit timer never grades a stale snapshot. */
   const answersRef = useRef<Record<string, number>>({});
+  const autoStartedRef = useRef(false);
 
   useEffect(() => {
     if (slug) addRecentSubject(slug);
@@ -101,19 +106,41 @@ export function Quiz({ slug, name, challenger, challengeScore }: Props) {
     }
   }, [slug]);
 
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    autoStartedRef.current = true;
+
+    if (autoStart) {
+      if (typeof window !== "undefined" && window.location.search.includes("start=1")) {
+        const cleanSearch = window.location.search
+          .replace(/([?&])start=1(&|$)/, "$1")
+          .replace(/[?&]$/, "");
+        window.history.replaceState({}, "", window.location.pathname + cleanSearch);
+      }
+      const timer = setTimeout(() => {
+        void start();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [autoStart, start]);
+
   const submit = useCallback(
     async (answersToSend: Record<string, number>) => {
       if (!quizId || submitted.current) return;
       submitted.current = true;
       setPhase("submitting");
       try {
+        const finalNick =
+          (typeof window !== "undefined" ? localStorage.getItem("nickname") : "") ||
+          nickname ||
+          "Anonymous";
         const res = await fetch("/api/quiz/submit", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             quizId,
             answers: answersToSend,
-            nickname: nickname || "Anonymous",
+            nickname: finalNick,
             timeTaken: Math.round((Date.now() - startedAt) / 1000),
           }),
         });
@@ -216,59 +243,77 @@ export function Quiz({ slug, name, challenger, challengeScore }: Props) {
 
   if (phase === "idle") {
     return (
-      <section className="quiz-start">
-        {challenger && challengeScore && (
-          <div className="challenge-banner" style={{ margin: "0 auto 18px", textAlign: "left" }}>
-            <div className="challenge-icon">⚔️</div>
-            <div>
-              <div className="challenge-title">
-                Challenge from <strong>{challenger}</strong>!
-              </div>
-              <div className="challenge-sub">
-                Beat <strong>{challengeScore}/15</strong> to take the crown in {name}!
+      <>
+        <WhatsAppGate
+          isOpen={isGateOpen}
+          subjectName={name}
+          subjectSlug={slug}
+          challengeInfo={
+            challenger && challengeScore
+              ? { challenger, score: challengeScore }
+              : null
+          }
+          onClose={() => setIsGateOpen(false)}
+          onUnlocked={() => {
+            setIsGateOpen(false);
+            void start();
+          }}
+        />
+
+        <section className="quiz-start">
+          {challenger && challengeScore && (
+            <div className="challenge-banner" style={{ margin: "0 auto 18px", textAlign: "left" }}>
+              <div className="challenge-icon">⚔️</div>
+              <div>
+                <div className="challenge-title">
+                  Challenge from <strong>{challenger}</strong>!
+                </div>
+                <div className="challenge-sub">
+                  Beat <strong>{challengeScore}/15</strong> to take the crown in {name}!
+                </div>
               </div>
             </div>
-          </div>
-        )}
-
-        <div style={{ display: "flex", justifyContent: "center", gap: 10, alignItems: "center", marginBottom: 12 }}>
-          <button
-            type="button"
-            className="sound-toggle-btn"
-            onClick={() => {
-              const next = !soundOn;
-              setSoundOn(next);
-              setSoundEnabled(next);
-            }}
-            title="Toggle sound effects"
-          >
-            {soundOn ? "🔊 Sound On" : "🔇 Sound Off"}
-          </button>
-          {mounted && streakCount > 0 && (
-            <span className="streak-pill" style={{ margin: 0 }}>
-              🔥 {streakCount}-Day Streak
-            </span>
           )}
-        </div>
 
-        <h2 className="section-title">{name}</h2>
-        <p className="muted">
-          15 questions · 5 minutes · randomised every attempt. Your answers are
-          graded on the server.
-        </p>
-        <button className="btn-primary" onClick={start}>
-          <i className="fas fa-play" /> Start quiz
-        </button>
-        {!nickname.trim() && (
-          <p className="muted small">
-            No nickname set — you will appear as &quot;Anonymous&quot; on the
-            leaderboard.
+          <div style={{ display: "flex", justifyContent: "center", gap: 10, alignItems: "center", marginBottom: 12 }}>
+            <button
+              type="button"
+              className="sound-toggle-btn"
+              onClick={() => {
+                const next = !soundOn;
+                setSoundOn(next);
+                setSoundEnabled(next);
+              }}
+              title="Toggle sound effects"
+            >
+              {soundOn ? "🔊 Sound On" : "🔇 Sound Off"}
+            </button>
+            {mounted && streakCount > 0 && (
+              <span className="streak-pill" style={{ margin: 0 }}>
+                🔥 {streakCount}-Day Streak
+              </span>
+            )}
+          </div>
+
+          <h2 className="section-title">{name}</h2>
+          <p className="muted">
+            15 questions · 5 minutes · randomised every attempt. Your answers are
+            graded on the server.
           </p>
-        )}
-        <p className="muted small">
-          <Link href="/">← Choose another subject</Link>
-        </p>
-      </section>
+          <button className="btn-primary" onClick={() => setIsGateOpen(true)}>
+            <i className="fas fa-play" /> Start quiz
+          </button>
+          {!nickname.trim() && (
+            <p className="muted small">
+              No nickname set — you will appear as &quot;Anonymous&quot; on the
+              leaderboard.
+            </p>
+          )}
+          <p className="muted small">
+            <Link href="/">← Choose another subject</Link>
+          </p>
+        </section>
+      </>
     );
   }
 

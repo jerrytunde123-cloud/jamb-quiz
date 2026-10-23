@@ -34,7 +34,7 @@ export default async function QuizPage({
   searchParams,
 }: {
   params: Promise<{ subject: string }>;
-  searchParams: Promise<{ challenger?: string; score?: string }>;
+  searchParams: Promise<{ challenger?: string; score?: string; start?: string }>;
 }) {
   const [{ subject: slug }, query] = await Promise.all([params, searchParams]);
   const subject = await resolveSubject(slug);
@@ -63,6 +63,7 @@ export default async function QuizPage({
           name={subject.name}
           challenger={query?.challenger}
           challengeScore={query?.score}
+          autoStart={query?.start === "1"}
         />
       </main>
     </>
