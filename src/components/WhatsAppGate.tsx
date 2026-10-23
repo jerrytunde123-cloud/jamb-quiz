@@ -43,18 +43,37 @@ export function handleWhatsAppDeepLink(
   const channelCode = match[1];
   const deepLink = `whatsapp://channel/${channelCode}`;
 
-  // Open in a new context so the gate modal's state survives on Safari/iOS,
-  // which would otherwise unload this document on scheme navigation.
-  const opened = window.open(deepLink, "_blank");
-  setTimeout(() => {
-    try {
-      if (!opened || opened.closed) {
-        window.open(httpsUrl, "_blank", "noopener,noreferrer");
-      }
-    } catch {
-      window.open(httpsUrl, "_blank", "noopener,noreferrer");
-    }
+  // Use a hidden iframe to attempt the native scheme. This avoids opening a
+  // blank tab that lingers when the user cancels the "Open in WhatsApp?"
+  // prompt on Safari/iOS, and keeps this document mounted.
+  const iframe = document.createElement("iframe");
+  iframe.style.display = "none";
+  iframe.src = deepLink;
+  document.body.appendChild(iframe);
+
+  const fallbackTimer = setTimeout(() => {
+    // If we're still here, the scheme didn't take (no app / user cancelled).
+    window.open(httpsUrl, "_blank", "noopener,noreferrer");
   }, 1200);
+
+  const cleanup = () => {
+    clearTimeout(fallbackTimer);
+    try {
+      document.body.removeChild(iframe);
+    } catch {
+      /* already removed */
+    }
+  };
+
+  const onHidden = () => {
+    if (document.hidden) {
+      clearTimeout(fallbackTimer);
+      setTimeout(cleanup, 300);
+    }
+  };
+  document.addEventListener("visibilitychange", onHidden, { once: true });
+
+  setTimeout(cleanup, 2000);
 }
 
 interface WhatsAppGateProps {
