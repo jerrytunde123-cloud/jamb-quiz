@@ -202,43 +202,55 @@ export function Home({ subjects }: { subjects: SubjectRow[] }) {
 
         {/* JAMB EXAM ASSISTANCE PANEL */}
         <section className="assistance-panel">
-          <div className="assist-header">
-            <i className="fas fa-graduation-cap" />
-            <h3>FOR FULL EXAM GUIDE, PREPARATIONS &amp; ASSISTANCE</h3>
-          </div>
-          <div className="assist-buttons">
-            <a
-              className="assist-btn wa"
-              href="https://wa.me/2349114187843?text=Hi%2C%20I%20need%20JAMB%20assistance"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <i className="fab fa-whatsapp" /> Chat on WhatsApp
-            </a>
-            <a
-              className="assist-btn tg"
-              href="https://t.me/Officialkingjay1"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <i className="fab fa-telegram" /> Chat on Telegram
-            </a>
-            <a
-              className="assist-btn site"
-              href="https://utmelab.com"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <i className="fas fa-globe" /> Visit utmelab.com
-            </a>
-            <a
-              className="assist-btn site-alt"
-              href="https://jamb-lab.vercel.app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <i className="fas fa-laptop" /> JAMB Practice (Vercel)
-            </a>
+          <div className="assist-content">
+            <div className="assist-eyebrow">
+              <i className="fas fa-graduation-cap" /> SUCCESS ACADEMY · UTME LAB
+            </div>
+            <h3 className="assist-title">Need the full exam guide &amp; preparation help?</h3>
+            <p className="assist-desc">
+              Go beyond practice quizzes — get complete JAMB/Past-question prep, study
+              materials, CBT simulation and 1-on-1 assistance from our team.
+            </p>
+            <div className="assist-chips">
+              <span><i className="fas fa-book-open" /> Study materials</span>
+              <span><i className="fas fa-laptop-code" /> Full CBT simulator</span>
+              <span><i className="fas fa-headset" /> 1-on-1 assistance</span>
+              <span><i className="fas fa-chart-line" /> Exam guide</span>
+            </div>
+            <div className="assist-buttons">
+              <a
+                className="assist-btn site"
+                href="https://utmelab.com"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <i className="fas fa-globe" /> Visit utmelab.com
+              </a>
+              <a
+                className="assist-btn wa"
+                href="https://wa.me/2349114187843?text=Hi%2C%20I%20need%20JAMB%20assistance"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <i className="fab fa-whatsapp" /> Chat on WhatsApp
+              </a>
+              <a
+                className="assist-btn tg"
+                href="https://t.me/Officialkingjay1"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <i className="fab fa-telegram" /> Chat on Telegram
+              </a>
+              <a
+                className="assist-btn site-alt"
+                href="https://jamb-lab.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <i className="fas fa-laptop" /> JAMB Practice (Vercel)
+              </a>
+            </div>
           </div>
         </section>
       </main>

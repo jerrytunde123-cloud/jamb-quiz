@@ -134,17 +134,33 @@ a.subject-card:hover {
 
 /* ---------- Assistance panel ---------- */
 .assistance-panel {
-  max-width: 900px; margin: 12px auto 0; padding: 16px 20px;
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  max-width: 900px; margin: 20px auto 0; padding: 24px 26px;
+  background: linear-gradient(135deg, rgba(245,166,35,0.10), rgba(37,211,102,0.06));
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.25);
 }
-.assist-header { display: flex; align-items: center; gap: 10px; color: var(--primary); margin-bottom: 12px; }
-.assist-header h3 { font-size: 15px; }
-.assist-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+.assist-content { display: flex; flex-direction: column; gap: 10px; }
+.assist-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+  color: var(--primary); text-transform: uppercase;
+}
+.assist-title { font-size: 20px; font-weight: 700; color: var(--text); margin: 0; }
+.assist-desc { font-size: 14px; color: var(--muted); line-height: 1.5; margin: 0; max-width: 620px; }
+.assist-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 6px; }
+.assist-chips span {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+}
+.assist-chips span i { color: var(--primary); }
+.assist-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
 .assist-btn {
   display: inline-flex; gap: 8px; align-items: center; padding: 10px 16px;
-  border-radius: 10px; text-decoration: none; color: #fff; font-size: 12px; font-weight: 600;
+  border-radius: 10px; text-decoration: none; color: #fff; font-size: 13px; font-weight: 600;
+  transition: transform .15s, filter .15s;
 }
-.assist-btn:hover { text-decoration: none; filter: brightness(1.1); }
+.assist-btn:hover { text-decoration: none; filter: brightness(1.1); transform: translateY(-1px); }
 .assist-btn.wa { background: #25d366; }
 .assist-btn.tg { background: #229ed9; }
 .assist-btn.site { background: var(--primary-gradient); color: #000; }
