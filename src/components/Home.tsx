@@ -295,6 +295,7 @@ function SubjectCard({
       className="subject-card"
       style={{ cursor: "pointer" }}
       onClick={() => onSelect(subject)}
+      onTouchStart={() => {}} // Enable touch events on mobile
     >
       {mounted && best ? (
         <div className="best-badge">
