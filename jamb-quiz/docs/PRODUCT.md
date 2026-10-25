@@ -5,13 +5,21 @@
 **Owner:** Jerry
 **Last updated:** 2026-10-25
 
+> **Prototype status (2026-10-25):** The student Today → Practice → Result
+> flow, student Progress, and the read-only parent report are built on
+> deterministic demo data. The readiness engine and projection are real;
+> question content, auth, and share-token issuance are still sample-only.
+
 ---
 
 ## 1. The Promise
 
-> Open the app and see your projected JAMB score. Do what it tells you. Watch the number climb.
+> Open the app, do today's short session, and watch your projected JAMB score
+> climb. Your parent sees the same picture — without watching over your shoulder.
 
-The product is **not** a question bank and **not** a quiz arcade. It is a readiness engine: it measures how prepared a student is for UTME, tells them exactly what to fix, and proves that they are improving.
+The product is **not** a question bank and **not** a quiz arcade. It is a
+readiness engine with two surfaces: a simple daily practice loop for the
+student, and a read-only progress report for the parent or guardian.
 
 **North-star metric:** readiness delta per active student per week.
 If a student's projected score does not move, the product has failed — regardless of time spent or quizzes taken.
@@ -22,15 +30,21 @@ If a student's projected score does not move, the product has failed — regardl
 
 | Attribute | Reality |
 |---|---|
-| Age | 15–20 |
+| Age | 12–17 (design for the younger end; most UTME candidates are 15–17) |
 | Device | Android, often low-end, 3–4 GB RAM |
 | Connectivity | Intermittent, data-expensive |
 | Behaviour | WhatsApp-native; shares results and jokes via Status |
 | Timeline | Weeks to months before UTME (typically April–May) |
 | Emotional state | Anxious, wants certainty, easily discouraged |
 | Also preparing for | WAEC (overlapping syllabus) |
+| Decision-maker | Parent/guardian, often paying; wants a credible progress signal, not surveillance |
 
-**Design consequence:** mobile-first, offline-capable, low-JS, WhatsApp-shaped distribution, and *encouraging* feedback — never shaming.
+**Design consequence:** two surfaces, one engine. The student gets a
+low-information loop — one question at a time, one decision per screen, no
+dashboard. The parent gets the detailed report: projected score, range,
+confidence, coverage, subjects, weak topics, and trend. Both read the same
+projection snapshot. Mobile-first, offline-capable, low-JS, WhatsApp-shaped
+distribution, and *encouraging* feedback — never shaming.
 
 ---
 
@@ -40,11 +54,30 @@ Three pillars. Every feature must serve one of them.
 
 | Pillar | Student's question | Product answer |
 |---|---|---|
-| **Know where I stand** | "Am I ready?" | Projected score + range, subject readiness, percentile, weak topics |
-| **Fix my gaps fast** | "What do I do next?" | Explanations, concept drills, spaced review, adaptive practice |
-| **Stay accountable** | "Why come back tomorrow?" | Daily exam, streak, weekly leagues, study pods, shareable results |
+| **Know where I stand** | "Am I ready?" | Projected score + range, subject readiness, weak topics |
+| **Fix my gaps fast** | "What do I do next?" | One daily session, explanations, concept drills, spaced review |
+| **Stay accountable** | "Why come back tomorrow?" | Daily session, streak, weekly leagues, study pods, shareable progress |
 
 Anything that serves none of these is out of scope.
+
+### 3.1 Two surfaces, one engine
+
+| Surface | Who | What it shows | What it hides |
+|---|---|---|---|
+| **Today → Practice → Result** | Student | Today's session, one question at a time, session score, one focus, projected estimate | Confidence intervals, coverage, timing risk, model version |
+| **Progress** | Student | Score + range, subject bars, top two weak topics, parent share link | Detailed analytics, marks at stake, per-question history |
+| **Parent report** (`/report/[token]`) | Parent/guardian | Projected score + range, confidence, coverage, trend, subject readiness, weakest topics, pace, model version | Raw question history, surveillance-style logs |
+
+**Rules**
+
+- Both surfaces read the same append-only projection snapshot. No score is
+  recomputed inside a component.
+- The student surface never shows a dashboard. One decision per screen.
+- The parent report is read-only. In v1 it is reached through an unguessable
+  share link (WhatsApp-first); there is no parent account.
+- The parent sees progress, not surveillance: no per-question log, no location,
+  no "last seen".
+- The detailed dashboard belongs to the parent report, not the student home.
 
 ---
 
@@ -172,20 +205,20 @@ Topic weights per subject come from the JAMB syllabus and are stored as `topic.b
 
 Without the diagnostic, day-one readiness is a blind guess. This screen is mandatory for activation.
 
-### 5.2 Home / Dashboard
-- Readiness ring (aggregate)
-- Projected score + range + 7-day trend
-- Three weakest topics with "Fix this" buttons
-- Daily exam card (resets at midnight)
-- Review-due count (spaced repetition)
-- Streak + freeze tokens
+### 5.2 Student Today
+- One screen, one decision: "Today's 20"
+- Session size + rough time
+- One primary CTA ("Let's go")
+- Small score pill linking to Progress
+- Streak line
+- No readiness ring, no subject list, no dashboard
 
 ### 5.3 Practice
 - One question at a time, adaptive difficulty
 - Immediate explanation after answering (correct or not)
-- "Why were the others wrong?" expandable
-- Concept tag + 20-second micro-rule
-- "Drill this concept" CTA on a miss
+- Subject label only; no visible timer (pace is measured silently for the parent report)
+- Progress is "Question 3 of 10", not a performance dashboard
+- Session ends with score, projected estimate, and one focus
 - Fast, keyboard/touch friendly
 
 ### 5.4 Drill
@@ -198,42 +231,56 @@ Without the diagnostic, day-one readiness is a blind guess. This screen is manda
 - 180 questions / 120 minutes for a full mock; subject mocks supported
 - Submit → results
 
-### 5.6 Results / Analytics
-- Scaled score + percentile vs. cohort
-- Topic breakdown with mastery deltas
-- Time per question and pacing warnings
-- Guessing detection summary
-- "What to fix next" ranked list
-- Share card CTA
+### 5.6 Student Progress
+- Projected score + likely range
+- Goal gap
+- Subject readiness bars
+- Top two weak topics
+- "Practice now"
+- "For parents: open or share the read-only report on WhatsApp"
 
-### 5.7 Leagues & Daily Exam
+### 5.7 Leagues, Daily Exam & Pods
 - Weekly leagues by subject (Bronze / Silver / Gold), top N promote
-- Daily exam: same 10 questions for everyone, midnight reset, national leaderboard
+- Daily exam: same 10 questions for everyone, midnight reset, national leaderboard (separate from the student's daily practice session)
 - Study pods: 5–10 friends, private leaderboard, daily nudge
 
 ### 5.8 Review Queue
 - Spaced repetition of missed questions
 - SM-2-style intervals: 1d → 3d → 7d → 21d → 60d
-- Dashboard badge with due count
+- Progress badge with due count
 
 ### 5.9 Profile
 - Subjects, target score, streak history, badges, projected trend graph
 - Optional account upgrade from anonymous device
+
+### 5.10 Parent Report (read-only, `/report/[token]`)
+- Projected score + 90% range + goal gap
+- Confidence, coverage, questions answered, and pace
+- 7-day and 30-day trend
+- Subject readiness, accuracy, question count, and month delta
+- Three weakest topics with expected marks at stake
+- "How to read this report" + scoring model version
+- Read-only; reached through an unguessable WhatsApp-shared link. No parent account in v1.
+- No raw question log, location, or "last seen" data
 
 ---
 
 ## 6. Scope
 
 ### MVP (v1) — ship in ~6 weeks
+
+> The current prototype covers the shape of items 3–5 and 9 with sample
+> content. Items 1–2, 6–8, and 10 remain the build target.
+
 1. Anonymous-first entry (device ID) + optional account
 2. Onboarding diagnostic
 3. Practice with explanations
 4. Topic mastery + subject readiness + projected score (v0)
-5. Home dashboard
+5. Student Today + student Progress + read-only parent report
 6. Concept drills
 7. Mock exam + results analytics
-8. Daily exam + streak
-9. WhatsApp share card (Status-sized image)
+8. Daily practice session + streak
+9. WhatsApp-shared read-only parent report link (share card later)
 10. 4 subjects at launch: English, Mathematics, Physics, Chemistry
 
 ### v1.1
@@ -425,4 +472,4 @@ reports            (id, user_id, question_id?, explanation_id?, reason, status)
 
 ## 16. One-Line Summary
 
-> A readiness engine that shows every JAMB student their projected score, tells them exactly what to fix, and proves the number is climbing — offline-friendly, WhatsApp-native, and honest about its uncertainty.
+> A daily JAMB coach for the student, with a progress report the parent can trust — simple on the surface, one honest readiness engine underneath.

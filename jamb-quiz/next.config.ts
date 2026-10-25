@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   // finds the legacy project's package-lock.json in the parent directory, and
   // warns about "multiple lockfiles".
   outputFileTracingRoot: path.resolve(__dirname),
+  // Allow the dev server to serve HMR/assets when opened from a phone on the
+  // LAN. Update this if the machine's network address changes.
+  allowedDevOrigins: ["10.157.252.151"],
   experimental: {
     agentFeedback: true,
   },
