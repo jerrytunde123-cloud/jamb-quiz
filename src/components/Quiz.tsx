@@ -104,7 +104,7 @@ export function Quiz({ slug, name, challenger, challengeScore, autoStart }: Prop
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, index, questions, answeredCount]);
+  }, [phase, index, questions.length]);
 
   const start = useCallback(async () => {
     setPhase("loading");
