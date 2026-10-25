@@ -22,3 +22,34 @@ vercel-output/
 
 # Downloaded image cache
 db/image-cache/
+
+# ---------------------------------------------------------------------------
+# Nested rewrite project (jamb-quiz/jamb-quiz)
+# This is the new app being built while the legacy root app still deploys.
+# Build artifacts and deps must never be committed. When the rewrite replaces
+# the root app, these paths move up and this block can be deleted.
+# ---------------------------------------------------------------------------
+jamb-quiz/node_modules/
+jamb-quiz/**/node_modules/
+jamb-quiz/.next/
+jamb-quiz/**/.next/
+jamb-quiz/.next/types/
+jamb-quiz/**/.next/types/
+jamb-quiz/out/
+jamb-quiz/**/out/
+jamb-quiz/build/
+jamb-quiz/**/build/
+jamb-quiz/vercel-output/
+jamb-quiz/.env
+jamb-quiz/.env.local
+jamb-quiz/.env.*.local
+jamb-quiz/**/.env
+jamb-quiz/**/.env.local
+jamb-quiz/**/.env.*.local
+jamb-quiz/*.db
+jamb-quiz/*.db-journal
+jamb-quiz/*.db-wal
+jamb-quiz/*.db-shm
+jamb-quiz/**/*.tsbuildinfo
+jamb-quiz/*.tsbuildinfo
+jamb-quiz/next-env.d.ts

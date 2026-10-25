@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Nested rewrite project — has its own toolchain and is linted from its
+    // own directory. Linting it from the legacy root breaks the current build.
+    "jamb-quiz/**",
   ]),
 ]);
 
