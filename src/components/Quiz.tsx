@@ -80,6 +80,7 @@ export function Quiz({ slug, name, challenger, challengeScore, autoStart }: Prop
 
   // Keyboard shortcuts: 1-6 select option, ArrowLeft/Right navigate, Enter next, S submit.
   useEffect(() => {
+    const current = questions[index];
     if (phase !== "quiz" || !current) return;
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -103,7 +104,7 @@ export function Quiz({ slug, name, challenger, challengeScore, autoStart }: Prop
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, current, index, questions.length, answeredCount]);
+  }, [phase, index, questions, answeredCount]);
 
   const start = useCallback(async () => {
     setPhase("loading");

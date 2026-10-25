@@ -332,12 +332,7 @@ export function QuizRunner({ subject }: QuizRunnerProps) {
               <h2 className="text-lg leading-snug font-medium">
                 <RichText text={current.question} marks={current.inline} />
               </h2>
-              {current.year > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {current.exam} {current.year}
-                  {current.section ? ` · ${current.section}` : ""}
-                </p>
-              ) : null}
+
             </div>
 
             <div className="flex flex-col gap-2">

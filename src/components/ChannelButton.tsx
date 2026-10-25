@@ -22,9 +22,10 @@ export function ChannelButton({ channel, onJoin }: ChannelButtonProps) {
   // Determine the correct href based on device
   // On mobile, use deep link; on desktop, use web URL
   const getHref = () => {
-    if (typeof window === "undefined") return href;
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    return isMobile ? `whatsapp://channel/${deepLinkCode}` : href;
+    // iOS Safari does not reliably open the custom whatsapp:// scheme from a
+    // tap. Use the https channel URL (a universal link) on every device so the
+    // WhatsApp app opens when installed and falls back to the web page otherwise.
+    return href;
   };
 
   // Handle click - only for tracking join state, don't prevent default
