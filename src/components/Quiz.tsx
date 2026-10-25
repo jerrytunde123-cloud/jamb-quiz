@@ -640,12 +640,7 @@ export function Quiz({ slug, name, challenger, challengeScore, autoStart }: Prop
         <h3 className="question-text">
           <RichText text={current.question} marks={current.inline} />
         </h3>
-        {current.year > 0 && (
-          <p className="muted small">
-            {current.exam} {current.year}
-            {current.section ? ` · ${current.section}` : ""}
-          </p>
-        )}
+
 
         <div className="options">
           {current.options.map((opt, oi) => (
